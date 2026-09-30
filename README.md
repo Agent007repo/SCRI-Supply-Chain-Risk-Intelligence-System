@@ -368,7 +368,7 @@ Bottom panel (SCSI vs Anomaly Detections): The SCSI index (dark line) with red s
 
 **What it shows:** Three panels, one per horizon, comparing raw LightGBM probabilities (red circles) to isotonic-calibrated probabilities (green squares) against a perfect calibration diagonal (black dashes).
 
-**How to read it:** On a perfectly calibrated model, every point falls exactly on the diagonal, meaning when the model predicts 40% probability, approximately 40% of those predictions are followed by a stress event. Points above the diagonal mean the model is underconfident. Points below mean it is overconfident. The green calibrated series should sit closer to the diagonal than the red raw series. The 7-day model calibrates cleanly (raw AUC 0.710 to calibrated AUC 0.711, essentially unchanged, confirming the model was already well-ranked and calibration only refined the probability scale). The 30-day model calibration collapses toward a near-constant output, which is the correct behavior given the near-constant positive label in the test period.
+**How to read it:** On a perfectly calibrated model, every point falls exactly on the diagonal, meaning when the model predicts 40% probability, approximately 40% of those predictions are followed by a stress event. Points above the diagonal mean the model is underconfident. Points below mean it is overconfident. The green calibrated series should sit closer to the diagonal than the red raw series. The 7-day model calibrates cleanly (raw AUC 0.710 to calibrated AUC 0.711, essentially unchanged, confirming the model was already well-ranked and calibration only refined the probability scale). The 30-day output is nearly constant in the reported run. That is a calibration and usefulness concern to investigate, rather than proof of correct behavior.
 
 ---
 
@@ -380,7 +380,7 @@ Top row, left (ROC Curves): True Positive Rate vs False Positive Rate for all th
 
 Top row, middle (Precision-Recall Curves): Unlike ROC curves, PR curves are not fooled by class imbalance. The 7-day AUPRC of 0.643 represents meaningful lift over the naive baseline of 0.477.
 
-Top row, right (AUC-ROC vs AUPRC bar chart): Side-by-side comparison by horizon. The visible drop from 7d to 14d to 30d confirms that forecast skill degrades as horizon increases, which is a fundamental property of noisy financial time series and reflects honest model behavior.
+Top row, right (AUC-ROC vs AUPRC bar chart): Side-by-side comparison by horizon. The reported comparison shows weaker ranking at longer horizons in this run. It does not establish why performance deteriorates.
 
 Bottom row (Time-series overlays, one per horizon): The colored fill shows calibrated risk probability over the 2023-2026 test period. The dark line is the actual SCSI. Black dots at the top mark days where the true label was positive. Vertical dotted lines mark out-of-sample events. The key check is whether the colored fill rises before the event lines, not after.
 
@@ -394,7 +394,7 @@ Top panel (Ensemble Risk Score and Tier): The primary operational view. Backgrou
 
 Middle panel (Risk Probability by Horizon plus AE Score): Three colored lines for 7d, 14d, and 30d calibrated probabilities, plus the purple dashed line for the normalized AE anomaly score. When the 30-day line rises before the 7-day line, the model is detecting a building regime shift. When the AE score spikes without a corresponding LightGBM move, the autoencoder has detected structural novelty that historical pattern-matching has not yet processed.
 
-Bottom panel (SCSI Actual vs 7-Day Forecast): Dual-axis overlay of actual SCSI (dark line) against the 7-day calibrated risk probability (red fill). The right axis should track the left axis with the forecast anticipating SCSI movements rather than following them. Red fill rising before SCSI peaks confirms predictive lead time.
+Bottom panel (SCSI Actual vs 7-Day Forecast): Dual-axis overlay of actual SCSI (dark line) against the 7-day calibrated risk probability (red fill). The right axis should track the left axis with the forecast anticipating SCSI movements rather than following them. An apparent lead in an overlay must be checked against dated predictions, point-in-time inputs, and explicit event timing before claiming predictive lead time.
 
 **How to read the dashboard overall:** Periods where all three panels simultaneously show elevated signals are the highest-confidence alerts. Divergences between panels are informative. AE elevated but LightGBM flat suggests a novel pattern the historical training cannot explain. LightGBM elevated but AE flat suggests a familiar historical regime recurring.
 
@@ -501,21 +501,14 @@ Master DataFrame: (2947, 8) | Mode: REAL
 
 ### Option B: Local Jupyter
 
+Clone the actual repository:
+
 ```bash
-# Clone repository
 git clone https://github.com/Agent007repo/SCRI-Supply-Chain-Risk-Intelligence-System.git
 cd SCRI-Supply-Chain-Risk-Intelligence-System
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure API key
-cp .env.example .env
-# Edit .env: FRED_API_KEY=your_key_here
-
-# Launch notebook
-jupyter notebook SCRI_SupplyChainRisk.ipynb
 ```
+
+Use the dependency list below and review the notebook's configuration cells for local execution. This repository currently distributes the notebook rather than a packaged local application; a tested environment lockfile and local setup path remain development work. The Colab path above is the documented starting point.
 
 ### Requirements
 
