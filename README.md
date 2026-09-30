@@ -290,13 +290,13 @@ Reported fold AUC ranges from 0.63 to 0.77. AP varies substantially across folds
 
 ### SHAP Feature Importance (7-Day Model, Top 5 Drivers)
 
-| Rank | Feature | Mean SHAP | Economic Interpretation |
+| Rank | Feature | Mean SHAP | Interpretation hypothesis |
 |------|---------|-----------|------------------------|
 | 1 | `sent` (Consumer Sentiment) | 0.257 | Low consumer confidence precedes reduced order volumes and demand-driven supply disruptions |
-| 2 | `vix` (Volatility Index) | 0.239 | Market fear is the strongest real-time signal of perceived disruption risk |
-| 3 | `wti_oil` (WTI Crude) | 0.172 | Oil price level directly determines freight rates and logistics input costs |
+| 2 | `vix` (Volatility Index) | 0.239 | Market volatility may relate to perceived uncertainty |
+| 3 | `wti_oil` (WTI Crude) | 0.172 | Oil prices may proxy some logistics input-cost pressures |
 | 4 | `ship_stock` (Shipping Equity Basket) | 0.139 | Shipping company valuations price in future capacity and demand changes months ahead |
-| 5 | `sent_zscore_126d` (Sentiment 6-month Z-score) | 0.086 | Persistent sentiment weakness signals structural demand collapse, not just a cyclical dip |
+| 5 | `sent_zscore_126d` (Sentiment 6-month Z-score) | 0.086 | Persistent sentiment weakness may describe a broader demand regime |
 
 These SHAP values describe feature attribution for the reported model. The economic interpretations are hypotheses, not established causal effects. A separate ablation is needed to assess the autoencoder's incremental value.
 
@@ -318,9 +318,9 @@ Panel 2 (VIX): The CBOE Volatility Index. The dashed line at 30 marks the fear t
 
 Panel 3 (WTI Crude Oil vs ISM Manufacturing PMI): Dual-axis chart. Oil price on the left axis (orange), PMI on the right axis (purple). The dotted line at PMI = 50 is the expansion/contraction boundary. When oil is high and PMI is simultaneously below 50, that is the stagflationary combination historically most damaging to supply chains.
 
-Panel 4 (Yield Curve): The 10Y-2Y Treasury spread. Red shading marks yield curve inversion (spread below zero), which has preceded every US recession in the modern era. The 2022-2024 inversion is clearly visible.
+Panel 4 (Yield Curve): The 10Y-2Y Treasury spread. Red shading marks values below zero. This is a historical macro proxy, rather than a direct supply-chain outcome.
 
-**How to read it:** Look for convergence across panels. A single-signal anomaly such as an oil spike without a VIX move is often isolated noise. Multiple panels moving simultaneously is the signature of genuine supply chain stress.
+**How to read it:** compare the component series and their timing. Agreement can motivate investigation, but it does not by itself establish a supply-chain disruption.
 
 ---
 
@@ -344,7 +344,7 @@ Top panel (Reconstruction Error): The purple line is the daily anomaly score on 
 
 Bottom panel (SCSI vs Anomaly Detections): The SCSI index (dark line) with red shading for periods above the 75th percentile, confirming that anomaly detections in the top panel correspond to genuine SCSI elevation in the bottom panel.
 
-**How to read it:** The most important visual check is alignment between flagged periods in the top panel and high-SCSI periods in the bottom panel. The COVID spike is a reported historical alignment: the AE reconstruction error peaks near 100 in March-April 2020, precisely when SCSI peaks at 8.91 standard deviations. The autoencoder, trained only on 2015-2018 calm data and never shown COVID, assigns it a high reconstruction error in the reported output. This does not establish advance warning or general anomaly accuracy.
+**How to read it:** The most important visual check is alignment between flagged periods in the top panel and high-SCSI periods in the bottom panel. The COVID spike is a reported historical alignment: the AE reconstruction error peaks near 100 in March-April 2020, precisely when SCSI peaks at 8.91 standard deviations. The autoencoder, with a reported 2015–2018 training window,  assigns it a high reconstruction error in the reported output. This does not establish advance warning or general anomaly accuracy.
 
 ---
 
@@ -376,7 +376,7 @@ Bottom row (Time-series overlays, one per horizon): The colored fill shows calib
 
 Top panel (Ensemble Risk Score and Tier): a historical demonstration of ensemble scores and tier bands (CLEAR, WATCH, ELEVATED, HIGH, CRITICAL). It is not a validated daily monitoring service.
 
-Middle panel (Risk Probability by Horizon plus AE Score): Three colored lines for 7d, 14d, and 30d calibrated probabilities, plus the purple dashed line for the normalized AE anomaly score. When the 30-day line rises before the 7-day line, the model is detecting a building regime shift. When the AE score spikes without a corresponding LightGBM move, the autoencoder has detected structural novelty that historical pattern-matching has not yet processed.
+Middle panel (Risk Probability by Horizon plus AE Score): Three colored lines for 7d, 14d, and 30d calibrated probabilities, plus the purple dashed line for the normalized AE anomaly score. Differences between these lines show disagreement between component scores. A regime-shift or novelty interpretation requires separate validation.
 
 Bottom panel (SCSI Actual vs 7-Day Forecast): Dual-axis overlay of actual SCSI (dark line) against the 7-day calibrated risk probability (red fill). The right axis should track the left axis with the forecast anticipating SCSI movements rather than following them. An apparent lead in an overlay must be checked against dated predictions, point-in-time inputs, and explicit event timing before claiming predictive lead time.
 
@@ -492,7 +492,16 @@ git clone https://github.com/Agent007repo/SCRI-Supply-Chain-Risk-Intelligence-Sy
 cd SCRI-Supply-Chain-Risk-Intelligence-System
 ```
 
-Use the dependency list below and review the notebook's configuration cells for local execution. This repository currently distributes the notebook rather than a packaged local application; a tested environment lockfile and local setup path remain development work. The Colab path above is the documented starting point.
+The repository includes `requirements.txt` and `.env.example`. Install the declared dependencies in an isolated environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+jupyter notebook SCRI_SupplyChainRisk.ipynb
+```
+
+Review the notebook's configuration cells for the FRED key before running. The environment template documents the optional key; confirm that your chosen execution path actually loads it. This setup path has not been rerun during the documentation audit. A tested environment lockfile remains development work.
 
 ### Requirements
 
@@ -540,6 +549,9 @@ Proposed future components; these are not implemented production capabilities or
 - Weber et al. (2022). *Reconfigurations of global supply chains.* NBER Working Paper 30457.
 - Niculescu-Mizil & Caruana (2005). *Predicting Good Probabilities with Supervised Learning.* ICML.
 - Hyndman & Athanasopoulos (2021). *Forecasting: Principles and Practice*, 3rd edition.
+
+**Evaluation reference:**
+- [scikit-learn probability calibration](https://scikit-learn.org/stable/modules/calibration.html): calibration assessment and separation of fitting data.
 
 **Data Sources:**
 - FRED API: https://fred.stlouisfed.org/docs/api/fred
