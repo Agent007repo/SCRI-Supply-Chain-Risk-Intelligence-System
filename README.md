@@ -40,27 +40,11 @@
 
 ## 1. The Problem
 
-Global trade represents approximately **$56 trillion in annual flows**. When supply chains break, the damage propagates across industries in days. The largest disruptions in recent history:
+Supply-chain disruptions create a need to interpret macro and market information alongside direct logistics evidence. This notebook explores whether a composite macro-stress label can be modeled at 7-, 14-, and 30-day horizons.
 
-| Event | Date | Impact |
-|---|---|---|
-| US-China Tariff War | Jul 2018 | $360B in goods affected, container rates spiked 40% |
-| COVID-19 Demand Collapse | Mar 2020 | Global trade fell 5.3% in a single quarter |
-| Ever Given / Suez Canal Blockage | Mar 2021 | $9.6B/day in trade disrupted for 6 days |
-| Russia-Ukraine Invasion | Feb 2022 | Global energy and grain supply chains severed |
-| Shanghai Lockdowns | Mar-Jun 2022 | World's busiest port offline for 8 weeks |
-| Red Sea / Houthi Attacks | Oct 2023 | 12% of world trade rerouted, adding 10-14 days per voyage |
-| US Liberation Day Tariff Shock | Apr 2025 | Broadest tariff regime since 1930, immediate supply chain repricing |
+**Research question:** do the selected signals provide useful ranking of future SCSI threshold exceedances in a historical evaluation? SCSI is a constructed proxy, rather than a direct measure of shipping delays or business losses.
 
-**The core problem is reaction lag.** Most enterprise risk systems run batch processes once per day. By the time an alert reaches a logistics team, the window for mitigation has often already closed. These systems also rely on static rule-based thresholds set during calm periods, which fail precisely when stress is novel and unprecedented.
-
-**What is needed** is a system that:
-1. Reads multiple real-time macro and market signals simultaneously
-2. Distinguishes between normal volatility and genuine disruption
-3. Quantifies risk probability at multiple operational time horizons (7 days, 14 days, 30 days)
-4. Flags both *known* risk patterns (historical regime matching) and *unknown* risk patterns (novel shocks never seen before)
-5. Explains which signal is driving each alert so analysts can verify and act
-
+The current work is an offline notebook. Live ingestion, externally validated alerts, and logistics decisions remain future work.
 ---
 
 ## 2. The Solution
@@ -69,11 +53,11 @@ SCRI is a **two-model, four-layer ML pipeline** that ingests seven publicly avai
 
 The architecture deliberately separates two fundamentally different tasks:
 
-**LSTM Autoencoder** is trained only on normal market conditions from 2015-2018. It learns what calm looks like across a 30-day window of multivariate signals. When current conditions deviate sharply from that learned normal state space, reconstruction error spikes. This catches *unknown unknowns* including novel geopolitical events the model has never seen.
+**LSTM Autoencoder** uses a reported 2015–2018 training window to reconstruct multivariate sequences. Higher reconstruction error is treated as an anomaly score. This is a candidate signal of unfamiliar patterns, rather than a guarantee of detecting new geopolitical events.
 
-**LightGBM Classifiers** are trained on 8 years of labeled historical data covering every major supply chain shock from 2015-2022. They recognize the *known patterns* that precede stress events: yield curve inversions, VIX spikes alongside falling consumer sentiment, shipping equity drawdowns. This catches *known risk regimes*.
+**LightGBM Classifiers** model whether the constructed SCSI exceeds a threshold within each future horizon. The reported 2015–2022 training period includes several historical shocks; these are not independently verified supply-chain disruption labels.
 
-The outputs of both models feed into a weighted ensemble that produces a single calibrated risk score for each trading day.
+The outputs of both models feed a weighted ensemble score for each trading day. Calibration of the final ensemble score has not been established.
 
 ---
 
@@ -151,7 +135,7 @@ SCSI = 0.25 * VIX_norm
 
 All components are z-score normalized and the final SCSI is re-standardized to mean 0, standard deviation 1 across full history.
 
-**Why a composite?** No single signal is sufficient. Oil can spike from supply constraints with no demand collapse. VIX can spike from equity events unrelated to trade. The SCSI detects stress only when multiple signals diverge simultaneously, the signature of genuine supply chain disruption rather than isolated market noise.
+**Why a composite?** The index combines selected market and macro proxies. An elevated value describes that construction; it does not by itself establish a real supply-chain disruption. Weight choices and external validity require evaluation.
 
 **Binary labels for supervised learning:**
 - `stress_event_7d = 1` if SCSI exceeds its 75th percentile in the next 7 business days
@@ -168,7 +152,7 @@ Positive label rates:
   30d horizon - 51.6% of days precede a stress event
 ```
 
-The SCSI peak of 8.91 standard deviations corresponds to the COVID-19 demand collapse in March 2020, validating the index's sensitivity to extreme events.
+The reported SCSI peak of 8.91 aligns with March 2020. This historical alignment is a descriptive result, rather than independent validation of predictive sensitivity.
 
 ---
 
@@ -176,7 +160,7 @@ The SCSI peak of 8.91 standard deviations corresponds to the COVID-19 demand col
 
 **What it is:** A sequence autoencoder built with Long Short-Term Memory networks. It compresses a 30-day window of 25 multivariate signals into a 32-dimensional latent representation and then reconstructs the original sequence from that compressed encoding.
 
-**Key design choice:** Trained exclusively on pre-2019 data (887 sequences from the 2015-2018 calm period before any significant tariff escalation). It learns what normal market conditions look like and never sees COVID, the Suez blockage, Ukraine, or the Red Sea attacks during training.
+**Key design choice:** the reported autoencoder training window is 2015–2018 (887 sequences). It precedes COVID and later events but includes 2018 tariff activity, so it should not be described as uniformly calm or free of stress.
 
 **How it detects anomalies:** At inference time, it processes every window in the full 2015-2026 dataset. For normal periods, the reconstruction is accurate and MSE is low. When current market patterns deviate sharply from the learned normal state space, reconstruction fails and MSE spikes. This per-sample reconstruction error is the anomaly score.
 
@@ -202,15 +186,15 @@ Anomaly threshold: 90th percentile of all reconstruction errors
 Flagged days     : 279 out of 2,791 total sequences (10%)
 ```
 
-**Why not train on all data?** If the autoencoder sees COVID during training, it learns to reconstruct COVID-level signals accurately, defeating the purpose entirely. Training only on calm periods means high-stress market patterns always produce high reconstruction error regardless of whether those patterns appeared in historical data.
+**Why not train on all data?** A restricted training window is intended to provide a reference for reconstruction error. The window choice, preprocessing, and thresholds need review; high stress does not guarantee high reconstruction error.
 
-**The information cascade:** The normalized AE anomaly score is fed as a feature into LightGBM and also carries explicit 15% weight in the final ensemble, ensuring the anomaly signal propagates even for novel shock patterns that gradient boosting trees cannot anticipate from historical patterns.
+**The information cascade:** the normalized autoencoder score is a LightGBM feature and has a direct 15% ensemble weight. That weight changes the score but does not establish complementary predictive value or novel-shock detection.
 
 ---
 
 ### Layer 3: LightGBM Multi-Horizon Forecaster
 
-Three independent binary classifiers, one per forecast horizon, each answering a different operational question:
+Three binary classifiers, one per forecast horizon. The examples below describe potential uses if further validation establishes usefulness:
 
 | Horizon | Operational Question | Lead Time Use Case |
 |---------|---------------------|-------------------|
@@ -240,13 +224,13 @@ Three independent binary classifiers, one per forecast horizon, each answering a
 Training set : 2015-08-07 to 2022-12-30  (1,931 days)
                Covers all major shocks: US-China tariffs, COVID,
                Suez Canal, Russia-Ukraine, Shanghai lockdowns
-Test set     : 2023-01-02 to 2026-04-17  (860 days) - GENUINELY OUT-OF-SAMPLE
+Test set     : 2023-01-02 to 2026-04-17  (860 days) - reported held-out dates
                Covers: Red Sea/Houthi attacks, 2025 Liberation Day tariff shock
 ```
 
-This split is the key fix from the original project version. The prior 2018 split gave the model only 627 days of calm pre-tariff data, so it never learned what a stress event looks like, producing near-random predictions. The 2023 split trains on every major historical shock and reserves the two most recent events for truly out-of-sample evaluation.
+The reported split uses 2015–2022 for training and 2023–April 2026 for evaluation. Chronological dates alone do not rule out leakage: normalization, label thresholds, overlapping forward labels, calibration, and source publication dates still need auditing.
 
-**Probability calibration:** Raw gradient boosting probabilities are good at ranking (captured by AUC-ROC) but often poorly calibrated. After training, an isotonic regression calibrator is fitted on the validation set and applied to all test predictions, ensuring a 70% predicted probability means approximately 70% of similar historical conditions actually preceded a stress event within that horizon.
+**Probability calibration:** the described pipeline fits isotonic regression on a validation set and applies it to test predictions. Calibration quality must be measured on separate chronological data; the fitting step alone does not establish that a 70% estimate corresponds to a 70% observed rate.
 
 ---
 
@@ -259,17 +243,17 @@ Ensemble = (0.35 x 7d_calibrated) + (0.30 x 14d_calibrated)
          + (0.20 x 30d_calibrated) + (0.15 x AE_anomaly_norm)
 ```
 
-The 7-day model receives the highest weight due to its strongest measured performance. The AE score receives an explicit 15% direct weight, not relying solely on its LightGBM feature importance, to guarantee anomaly detection reaches the final output for novel shock patterns.
+The ensemble assigns 35% to the 7-day estimate, 30% to the 14-day estimate, 20% to the 30-day estimate, and 15% to the autoencoder score. These are design weights, rather than independently validated optimal weights.
 
 **Alert tiers:**
 
 | Tier | Ensemble Score | Meaning |
 |------|---------------|---------|
-| CRITICAL | 0.80 or above | Extreme stress imminent. Immediate escalation. |
-| HIGH | 0.60 to 0.79 | Significant disruption likely. Alert logistics leadership. |
-| ELEVATED | 0.45 to 0.59 | Elevated stress probability. Increase monitoring cadence. |
-| WATCH | 0.30 to 0.44 | Conditions warrant attention. Prepare alternatives. |
-| CLEAR | Below 0.30 | Normal operating conditions. Routine monitoring. |
+| CRITICAL | 0.80 or above | Highest demonstration score band; external event probability unvalidated. |
+| HIGH | 0.60 to 0.79 | High demonstration score band. |
+| ELEVATED | 0.45 to 0.59 | Elevated demonstration score band. |
+| WATCH | 0.30 to 0.44 | Intermediate demonstration score band. |
+| CLEAR | Below 0.30 | Low demonstration score band; does not establish absence of risk. |
 
 ---
 
@@ -314,7 +298,7 @@ Reported fold AUC ranges from 0.63 to 0.77. AP varies substantially across folds
 | 4 | `ship_stock` (Shipping Equity Basket) | 0.139 | Shipping company valuations price in future capacity and demand changes months ahead |
 | 5 | `sent_zscore_126d` (Sentiment 6-month Z-score) | 0.086 | Persistent sentiment weakness signals structural demand collapse, not just a cyclical dip |
 
-This feature ranking is economically coherent and tells a clear story. Consumer sentiment and market fear lead, followed by direct cost signals (oil), then market-priced forward indicators (shipping equities), then regime-level sentiment persistence. The AE anomaly score contributes primarily through its explicit 15% ensemble weight rather than via LightGBM feature importance, confirming the anomaly detector provides complementary information that gradient boosting trees cannot capture from historical patterns alone.
+These SHAP values describe feature attribution for the reported model. The economic interpretations are hypotheses, not established causal effects. A separate ablation is needed to assess the autoencoder's incremental value.
 
 ---
 
@@ -344,11 +328,11 @@ Panel 4 (Yield Curve): The 10Y-2Y Treasury spread. Red shading marks yield curve
 
 **What it shows:** Two panels.
 
-Left panel (Full signal correlation heatmap): Lower-triangular correlation matrix of all available signals. Negative correlations (blue) indicate opposing movements, which are valuable because they confirm the features carry independent information rather than just measuring the same underlying stress factor.
+Left panel (Full signal correlation heatmap): a lower-triangular correlation matrix of the available signals. Negative correlations describe opposing linear movements; they do not establish statistical independence.
 
 Right panel (SCSI distribution by regime): Histogram comparing all SCSI values (blue) versus SCSI values in the 7 days before a labeled stress event (red). The dashed vertical line is the 75th percentile threshold (0.322) used to generate binary labels.
 
-**How to read it:** The key insight in the right panel is that the pre-event distribution (red) is shifted significantly to the right of the full distribution (blue). This confirms that the SCSI has real predictive content. The degree of separation between the two histograms is a visual measure of how informative the SCSI is as a binary label source.
+**How to read it:** compare the distributions as a descriptive check. Because SCSI also constructs the target labels, separation between these distributions alone does not establish predictive validity on independent outcomes.
 
 ---
 
@@ -360,7 +344,7 @@ Top panel (Reconstruction Error): The purple line is the daily anomaly score on 
 
 Bottom panel (SCSI vs Anomaly Detections): The SCSI index (dark line) with red shading for periods above the 75th percentile, confirming that anomaly detections in the top panel correspond to genuine SCSI elevation in the bottom panel.
 
-**How to read it:** The most important visual check is alignment between flagged periods in the top panel and high-SCSI periods in the bottom panel. The COVID spike is the most dramatic validation: the AE reconstruction error peaks near 100 in March-April 2020, precisely when SCSI peaks at 8.91 standard deviations. The autoencoder, trained only on 2015-2018 calm data and never shown COVID, correctly identifies it as the most extreme anomaly in the full dataset.
+**How to read it:** The most important visual check is alignment between flagged periods in the top panel and high-SCSI periods in the bottom panel. The COVID spike is a reported historical alignment: the AE reconstruction error peaks near 100 in March-April 2020, precisely when SCSI peaks at 8.91 standard deviations. The autoencoder, trained only on 2015-2018 calm data and never shown COVID, assigns it a high reconstruction error in the reported output. This does not establish advance warning or general anomaly accuracy.
 
 ---
 
@@ -368,7 +352,7 @@ Bottom panel (SCSI vs Anomaly Detections): The SCSI index (dark line) with red s
 
 **What it shows:** Three panels, one per horizon, comparing raw LightGBM probabilities (red circles) to isotonic-calibrated probabilities (green squares) against a perfect calibration diagonal (black dashes).
 
-**How to read it:** On a perfectly calibrated model, every point falls exactly on the diagonal, meaning when the model predicts 40% probability, approximately 40% of those predictions are followed by a stress event. Points above the diagonal mean the model is underconfident. Points below mean it is overconfident. The green calibrated series should sit closer to the diagonal than the red raw series. The 7-day model calibrates cleanly (raw AUC 0.710 to calibrated AUC 0.711, essentially unchanged, confirming the model was already well-ranked and calibration only refined the probability scale). The 30-day output is nearly constant in the reported run. That is a calibration and usefulness concern to investigate, rather than proof of correct behavior.
+**How to read it:** On a perfectly calibrated model, every point falls exactly on the diagonal, meaning when the model predicts 40% probability, approximately 40% of those predictions are followed by a stress event. Points above the diagonal mean the model is underconfident. Points below mean it is overconfident. The green calibrated series should sit closer to the diagonal than the red raw series. The reported 7-day ROC-AUC changes from 0.710 to 0.711 after calibration; nearly unchanged ranking does not establish probability calibration quality. The 30-day output is nearly constant in the reported run. That is a calibration and usefulness concern to investigate, rather than proof of correct behavior.
 
 ---
 
@@ -390,13 +374,13 @@ Bottom row (Time-series overlays, one per horizon): The colored fill shows calib
 
 **What it shows:** Three stacked panels covering the full out-of-sample test period, January 2023 to April 2026.
 
-Top panel (Ensemble Risk Score and Tier): The primary operational view. Background color bands show the current risk tier (green = CLEAR, yellow = WATCH, orange = ELEVATED, red = HIGH, dark red = CRITICAL). The black line is the ensemble risk score on a 0-1 scale. This is what a risk analyst monitors daily.
+Top panel (Ensemble Risk Score and Tier): a historical demonstration of ensemble scores and tier bands (CLEAR, WATCH, ELEVATED, HIGH, CRITICAL). It is not a validated daily monitoring service.
 
 Middle panel (Risk Probability by Horizon plus AE Score): Three colored lines for 7d, 14d, and 30d calibrated probabilities, plus the purple dashed line for the normalized AE anomaly score. When the 30-day line rises before the 7-day line, the model is detecting a building regime shift. When the AE score spikes without a corresponding LightGBM move, the autoencoder has detected structural novelty that historical pattern-matching has not yet processed.
 
 Bottom panel (SCSI Actual vs 7-Day Forecast): Dual-axis overlay of actual SCSI (dark line) against the 7-day calibrated risk probability (red fill). The right axis should track the left axis with the forecast anticipating SCSI movements rather than following them. An apparent lead in an overlay must be checked against dated predictions, point-in-time inputs, and explicit event timing before claiming predictive lead time.
 
-**How to read the dashboard overall:** Periods where all three panels simultaneously show elevated signals are the highest-confidence alerts. Divergences between panels are informative. AE elevated but LightGBM flat suggests a novel pattern the historical training cannot explain. LightGBM elevated but AE flat suggests a familiar historical regime recurring.
+**How to read the dashboard overall:** compare agreements and divergences between component scores. Their operational significance remains unvalidated; agreement alone does not establish a high-confidence alert.
 
 ---
 
@@ -422,10 +406,10 @@ Shanghai Lockdowns                2022-03-28  N/A        N/A     NO DATA        
 ** US Tariff Shock (Liberation Day) 2025-04-02 0.7884    HIGH    DETECTED       OUT-OF-SAMPLE
 
 Selected historical episode coverage: 2/2 (small sample)
-Data integrity              : 100.00% real-world data density
+Reported real-data density : 100.00% (coverage summary, not a validity guarantee)
 ```
 
-**Why do in-sample events show NO DATA?** This is architecturally correct. The risk report covers only the test period (2023-present). In-sample events (2015-2022) are inside the training window. Including them in the detection audit would be data leakage and would artificially inflate results. They are excluded by design.
+**Why do in-sample events show NO DATA?** The displayed event diagnostic covers the reported test dates, so earlier events have no scores in this table. Their exclusion does not establish that preprocessing or evaluation is free of leakage.
 
 **What the two-episode result means:** both selected episodes had elevated scores within a reported 15-day window. The timing direction and first alert must be shown before claiming advance warning. Thresholds were based on test scores, so this is a retrospective diagnostic. A broader preregistered event set, false-alert counts, and lead-time distribution are needed to estimate operational performance.
 
@@ -461,7 +445,7 @@ High positive prevalence does not establish forecast quality. Compare against si
 The reason for this result has not been established. All horizons require validation; the better reported 7-day result alone is not sufficient for operational use.
 
 **3. The LSTM AE has a training-validation gap (train MSE 0.286, val MSE 0.464).**
-The autoencoder overfits slightly to the 2015-2018 calm window. Validation sequences from late 2018 already carry early tariff-era patterns that differ from the training regime. This does not break anomaly detection but the gap could be reduced by extending the normal training window to pre-2020.
+The reported training MSE is lower than validation MSE. This gap warrants review; its cause and the benefit of changing the training window have not been established.
 
 **4. No Baltic Dry Index (BDI) in real data mode.**
 The original design included BDI as a direct shipping demand signal. BDI is not available via the FRED API and requires Bloomberg or Quandl for high-quality history. The system compensates with the shipping equity basket (ZIM, FDX, UPS, BDRY) in real-data mode.
@@ -531,6 +515,8 @@ GPU is not required but reduces LSTM training from approximately 2 minutes on CP
 ---
 
 ## 12. Production Roadmap
+
+Proposed future components; these are not implemented production capabilities or confirmed integrations.
 
 | Phase | Component | Technology |
 |-------|-----------|-----------|
