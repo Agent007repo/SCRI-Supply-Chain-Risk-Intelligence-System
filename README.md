@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**Near-real-time ML pipeline that detects global supply chain stress before it propagates**
+**Independent research notebook for macro-risk forecasting and anomaly detection**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.10-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/)
@@ -10,7 +10,7 @@
 [![FRED API](https://img.shields.io/badge/Data-FRED%20API-blue?style=flat-square)](https://fred.stlouisfed.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
-*Backtested on COVID-19, Russia-Ukraine, Suez Canal, Red Sea attacks, and the 2025 Liberation Day tariff shock*
+*Historical analysis with a reported January 2023–April 2026 test period; results are not independently rerun or validated for operational use.*
 
 </div>
 
@@ -30,7 +30,7 @@
 6. [Model Results](#6-model-results)
 7. [Visualizations Explained](#7-visualizations-explained)
 8. [Backtesting: Event Detection](#8-backtesting-event-detection)
-9. [Current Live Signal](#9-current-live-signal)
+9. [Archived Notebook Output](#9-archived-notebook-output)
 10. [Honest Limitations](#10-honest-limitations)
 11. [Setup and Usage](#11-setup-and-usage)
 12. [Production Roadmap](#12-production-roadmap)
@@ -65,7 +65,7 @@ Global trade represents approximately **$56 trillion in annual flows**. When sup
 
 ## 2. The Solution
 
-SCRI is a **two-model, four-layer ML pipeline** that ingests seven publicly available macro and market signals daily and produces calibrated risk probability forecasts with a tiered alert classification.
+SCRI is a **two-model, four-layer ML pipeline** that ingests seven publicly available macro and market signals in a notebook run and produces model risk probability estimates with a tiered alert classification.
 
 The architecture deliberately separates two fundamentally different tasks:
 
@@ -84,10 +84,10 @@ RAW DATA LAYER
   FRED API (6 series) + yfinance (4 tickers) + Synthetic Fallback
               |
               v
-  Master DataFrame: 2,947 business days | 2015-01-01 to present
+  Master DataFrame: 2,947 business days | 2015-01-01 to April 2026 (reported run)
               |
               v
-  Feature Engineering: 64 features | lagged 1 day | no lookahead
+  Feature Engineering: 64 features | lagged 1 day | point-in-time audit still required
               |
         _____|______
        |            |
@@ -129,7 +129,7 @@ All data is **free and publicly available**. No proprietary data feeds required.
 | NY Fed Recession Probability | `RECPROUSM156N` | Monthly | Macro regime indicator. Weight: 10% |
 | Shipping Equity Basket | yfinance: ZIM, FDX, UPS, BDRY | Daily | Market-priced disruption signal. Weight: 20% |
 
-**Data coverage:** 2,947 business days from January 1, 2015 through the present day. 100% data integrity confirmed on every run.
+**Reported data coverage:** 2,947 business days from January 2015 through the April 2026 notebook run. Coverage and real-versus-synthetic mode must be checked for each rerun; completeness alone does not establish point-in-time validity.
 
 ---
 
@@ -275,21 +275,21 @@ The 7-day model receives the highest weight due to its strongest measured perfor
 
 ## 6. Model Results
 
-All metrics below are measured on the **genuine out-of-sample test set (January 2023 to April 2026)** and generated at runtime. No numbers are hardcoded or estimated.
+The metrics below are reported from the notebook's January 2023–April 2026 test period. They are retained as historical project results, not newly reproduced measurements. Operational validity requires a review of the preprocessing, label construction, calibration splits, and point-in-time data availability.
 
 ### LightGBM Performance (Calibrated, Out-of-Sample Test Set)
 
 | Horizon | AUC-ROC | AUPRC | Interpretation |
 |---------|---------|-------|----------------|
-| **7-day** | **0.711** | **0.643** | Strong discriminative power. Primary operational signal. |
-| 14-day | 0.523 | 0.602 | Near-random ranking. Use as directional only. |
-| 30-day | 0.479 | 0.755 | Collapses in sustained stress regime. See explanation below. |
+| **7-day** | **0.711** | **0.643** | Some reported ranking ability; further validation required. |
+| 14-day | 0.523 | 0.602 | Near-random ranking; operational usefulness not established. |
+| 30-day | 0.479 | 0.755 | Below 0.5 ranking; operational usefulness not established. |
 
-**What AUC-ROC measures:** Area Under the Receiver Operating Characteristic curve. A score of 1.0 is a perfect model; 0.5 is a coin flip. An AUC of 0.711 means the 7-day model correctly ranks a positive day above a negative day 71% of the time. For a macro risk signal in a noisy, regime-shifting economic environment, this is a practically useful result.
+**What AUC-ROC measures:** Area Under the Receiver Operating Characteristic curve. A score of 1.0 is a perfect model; 0.5 is a coin flip. An AUC of 0.711 means the 7-day model correctly ranks a positive day above a negative day 71% of the time. This is evidence of reported ranking ability, not proof of deployment readiness or reliable early warning.
 
 **What AUPRC measures:** Area Under the Precision-Recall Curve. Unlike AUC-ROC, AUPRC is sensitive to class imbalance and directly measures how well the model identifies positive events without producing false alarms. The 7-day AUPRC of 0.643 versus a baseline positive rate of 0.477 represents meaningful lift above random.
 
-**The 30-day model explained:** The 30-day AUC of 0.479 is below random, and this requires an explanation. The test period (2023-2026) has been one of the most persistently stressed macro environments in recent history. The result is that 76.3% of days in the test set are labeled as 30-day stress events. When three-quarters of all days are positive, ranking them becomes statistically degenerate. This is not a model failure. It is an accurate reflection of the current macro environment. The 30-day output should be read as a base-rate signal during sustained stress regimes rather than a discriminative forecast.
+**30-day interpretation:** ROC-AUC of 0.479 does not demonstrate useful ranking on this test set. The reported positive-label prevalence is 76.3%; prevalence does not by itself invalidate ROC-AUC or excuse weak discrimination. Compare the model against prevalence-based and simple time-series baselines, inspect uncertainty, and validate calibration on a separate chronological split. Do not use this output as an operational forecast without that work.
 
 ### Cross-Validation (7-Day Model, Expanding Window, 5 Folds)
 
@@ -302,7 +302,7 @@ All metrics below are measured on the **genuine out-of-sample test set (January 
 | 5 | 2,319 | 465 | 0.657 | 0.643 |
 | **Mean** | | | **0.682 +/- 0.051** | **0.552 +/- 0.205** |
 
-AUC is consistent across folds (range 0.63-0.77, std 0.051), confirming the ranking ability is genuine and not a product of a lucky single test split. The high AP variance is driven by Fold 1 (AP = 0.184), which covers a mostly-calm 2015-2016 period with very few stress events. The AUC stability is the more reliable signal across regime changes.
+Reported fold AUC ranges from 0.63 to 0.77. AP varies substantially across folds. These summaries warrant a chronological split audit, including a gap for overlapping forward labels, before claiming robust performance across regimes.
 
 ### SHAP Feature Importance (7-Day Model, Top 5 Drivers)
 
@@ -402,7 +402,7 @@ Bottom panel (SCSI Actual vs 7-Day Forecast): Dual-axis overlay of actual SCSI (
 
 ## 8. Backtesting: Event Detection
 
-The backtest directly answers whether the model correctly identified events it had never seen before.
+The reported event check covers two selected test-period episodes. It does not establish general detection accuracy or predictive lead time.
 
 ```
 === AUDIT: Event Detection (Out-of-Sample Test Period, 2023-present) ===
@@ -421,19 +421,19 @@ Shanghai Lockdowns                2022-03-28  N/A        N/A     NO DATA        
 ** Red Sea / Houthi Attacks       2023-10-19  0.7514     HIGH    DETECTED       OUT-OF-SAMPLE
 ** US Tariff Shock (Liberation Day) 2025-04-02 0.7884    HIGH    DETECTED       OUT-OF-SAMPLE
 
-Out-of-sample detection rate: 2/2 = 100%
+Selected historical episode coverage: 2/2 (small sample)
 Data integrity              : 100.00% real-world data density
 ```
 
 **Why do in-sample events show NO DATA?** This is architecturally correct. The risk report covers only the test period (2023-present). In-sample events (2015-2022) are inside the training window. Including them in the detection audit would be data leakage and would artificially inflate results. They are excluded by design.
 
-**What the 100% detection rate means:** The model correctly assigned HIGH-tier risk scores to both genuinely out-of-sample events within a 15-day window of those events occurring, despite never seeing those specific shock patterns during training. Both scores (0.7514 and 0.7884) exceed the 80th percentile threshold, meaning the model ranked those periods in the top 20% of all test-period days for predicted risk.
+**What the two-episode result means:** both selected episodes had elevated scores within a reported 15-day window. The timing direction and first alert must be shown before claiming advance warning. Thresholds were based on test scores, so this is a retrospective diagnostic. A broader preregistered event set, false-alert counts, and lead-time distribution are needed to estimate operational performance.
 
 ---
 
-## 9. Current Live Signal
+## 9. Archived Notebook Output
 
-As of the last notebook run on April 18, 2026:
+Historical output from the notebook run dated April 18, 2026. This is an archived snapshot, not a current or live signal:
 
 ```
 Date         7d Risk  14d Risk  30d Risk  AE Score  Ensemble  Tier
@@ -446,17 +446,19 @@ Date         7d Risk  14d Risk  30d Risk  AE Score  Ensemble  Tier
 Current SCSI: 0.546 to 0.670 (well above the 0.322 stress threshold)
 ```
 
-The current ELEVATED and WATCH signal is contextually correct. The April 2026 tariff environment following the Liberation Day announcements represents one of the broadest trade policy shocks since 1930. The 30-day probability of 1.0 reflects the persistent macro stress regime. The AE anomaly scores of 0.54-0.56 indicate ongoing structural deviation from the pre-2019 normal baseline. The model is not producing a false alarm. It is accurately describing a genuinely elevated-risk global trade environment.
+These outputs document the reported run. A 30-day estimate of 1.0 requires calibration review and should not be interpreted as certainty. The snapshot does not demonstrate live monitoring or independently confirm a real-world risk assessment.
 
 ---
 
 ## 10. Honest Limitations
 
-**1. The 30-day model loses discriminative power in sustained stress regimes.**
-When 76% of test-period days are positive events, ranking them becomes statistically degenerate. The 7-day model remains informative throughout. The 30-day output is best interpreted as a base-rate signal during sustained elevated periods rather than a discriminative forecast.
+**Evaluation work still required:** fit normalization and thresholds within each training window; check release dates and revised macro data; separate fitting, calibration, and testing chronologically; use a suitable gap for overlapping forward labels; report baseline comparisons, uncertainty, false alerts, and actual advance-warning timing. These are review priorities, not claimed completed fixes. Synthetic fallback results must be clearly separated from real-data results.
 
-**2. The 14-day model is near-random (AUC 0.52).**
-The 14-day horizon sits in a prediction dead zone: long enough that short-term signals have decayed, but short enough that structural regime signals have not fully manifested. Use the 7-day model for near-term operational decisions and treat 14-day output as directional context only.
+**1. The 30-day model has weak reported discrimination (ROC-AUC 0.479).**
+High positive prevalence does not establish forecast quality. Compare against simple baselines and review calibration before any operational use.
+
+**2. The 14-day model is near-random (ROC-AUC 0.523).**
+The reason for this result has not been established. All horizons require validation; the better reported 7-day result alone is not sufficient for operational use.
 
 **3. The LSTM AE has a training-validation gap (train MSE 0.286, val MSE 0.464).**
 The autoencoder overfits slightly to the 2015-2018 calm window. Validation sequences from late 2018 already carry early tariff-era patterns that differ from the training regime. This does not break anomaly detection but the gap could be reduced by extending the normal training window to pre-2020.
@@ -501,8 +503,8 @@ Master DataFrame: (2947, 8) | Mode: REAL
 
 ```bash
 # Clone repository
-git clone https://github.com/Agent007repo/SCRI_SupplyChainRisk.git
-cd SCRI_SupplyChainRisk
+git clone https://github.com/Agent007repo/SCRI-Supply-Chain-Risk-Intelligence-System.git
+cd SCRI-Supply-Chain-Risk-Intelligence-System
 
 # Install dependencies
 pip install -r requirements.txt
@@ -569,6 +571,6 @@ GPU is not required but reduces LSTM training from approximately 2 minutes on CP
 
 <div align="center">
 
-Built with real FRED macro data | Verified on genuinely out-of-sample events | Fully reproducible
+Independent research | Historical results documented | Point-in-time evaluation remains a priority
 
 </div>
